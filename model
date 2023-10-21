@@ -1,0 +1,98 @@
+import os
+import random
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+# Dane treningowe
+wypowiedzi = [
+     "Jeśli nie zbudujesz swojego marzenia, ktoś inny Cię zatrudni, abyś pomógł mu zbudować jego.",
+    "Nie znam klucza do sukcesu, ale kluczem do porażki jest próbowanie zadowolenia wszystki wokół",
+    "Moją filozofią jest: jeżeli mam jakieś pieniądze to inwestuje je w nowe przedsięwzięcia, nie pozwalam im siedzieć w miejscu",
+    "Nigdy nie podziwiaj ludzi za bogactwo, ale za twórcze i szczodre sposoby jego wykorzystania.",
+    "Ponoś porażki często, abyś mógł odnieść sukces szybciej.",
+    "Geniusz to 1% inspiracji i 99% potu.",
+    "Jeśli nie możesz robić rzeczy wielkich, rób małe rzeczy w wielki sposób.",
+    "Nie można sobie zapewnić reputacji tym, co ma się zamiar zrobić. Sprawa jest prosta – fantazjuj, próbuj, a potem ruszaj w świat i zrób to!",
+    "Nie oczekujcie od dnia tego, co mogą dać jedynie lata. Ale nie zapominajcie, że lata składają się z wielu dni, dlatego postanówcie, że nie zmarnujecie ani jednego dnia",
+    "Skoro i tak będziesz myśleć, myśl odważnie",
+    "Zawsze wydaje się, że coś jest niemożliwe, dopóki nie zostanie to zrobione..",
+    "Okazje biznesowe są jak autobusy, zawsze przyjedzie następny",
+    "Ludzie, którzy tracą czas czekając, aż zaistnieją najbardziej sprzyjające warunki, nigdy nic nie zdziałają. Najlepszy czas na działanie jest teraz!",
+    "Pamiętaj, iż twoja własna determinacja, by osiągnąć sukces liczy się bardziej, niż cokolwiek innego na świecie",
+    "Twoi najbardziej niezadowoleni klienci są najlepszym źródłem do nauki.",
+    "w kalnej do roboty ide",
+    "Cel to nic innego, jak marzenie z terminem realizacji",
+    "Nie to, co osiągasz, ale to, co przezwyciężasz, definiuje Twoją karierę",
+    "Nie bądź zbyt wrażliwy i krytyczny w stosunku do swoich działań. Całe życie jest eksperymentem",
+    "Jeżeli myślisz, że jesteś zbyt mały, by coś zmienić, spróbuj zasnąć z komarem latającym nad uchem",
+    "Aby więcej zarabiać musisz się więcej nauczyć",
+    "Cały świat usuwa się z drogi człowiekowi który wie dokąd zmierza",
+    "Najważniejszą opinią jest ta, którą mamy na własny temat, a najważniejsze co mówimy to to, co mówimy do siebie",
+    "To nie nasze życie jest krótkie, to my czynimy je krótkim zajmując się sprawami niepotrzebnymi",
+    "Winda wioząca na szczyt sukcesu jest zepsuta. Musisz dojść tam po schodach – stopień po stopniu.",
+    "Nigdy nie ma wystarczającej ilości czasu, by zrobić wszystko, ale zawsze jest wystarczająca ilość, by zrobić to, co najważniejsze.",
+    "Przyszłość należy do tych, którzy wierzą w piękno swoich marzeń",
+    "Droga do sukcesu to podjęcie zmasowanych, zdeterminowanych działań",
+    "Jest tylko jedna rzecz, która sprawia, że marzenie jest niemożliwe do osiągnięcia: strach przed porażką.",
+    "Dramatem życia jest to, że starzejemy się zbyt szybko, a mądrzejemy zbyt późno.",
+    "Nie odnajdziesz spokoju unikając życia.",
+    "Krytyka jest czymś, czego możemy łatwo uniknąć nie mówiąc nic, nie robiąc nic i będąc nikim."
+]
+
+tokenizer = Tokenizer()
+tokenizer.fit_on_texts(wypowiedzi)
+total_words = len(tokenizer.word_index) + 1
+
+# Przygotowanie danych treningowych
+input_sequences = []
+for wypowiedz in wypowiedzi:
+    sequence = tokenizer.texts_to_sequences([wypowiedz])[0]
+    for i in range(1, len(sequence)):
+        n_gram_sequence = sequence[:i+1]
+        input_sequences.append(n_gram_sequence)
+
+# Dopasowanie danych treningowych do modelu
+max_sequence_len = max([len(sequence) for sequence in input_sequences])
+input_sequences = pad_sequences(input_sequences, maxlen=max_sequence_len, padding='pre')
+xs, labels = input_sequences[:, :-1], input_sequences[:, -1]
+ys = tf.keras.utils.to_categorical(labels, num_classes=total_words)
+
+model = keras.Sequential()
+model.add(keras.layers.Embedding(total_words, 100, input_length=max_sequence_len-1))
+model.add(keras.layers.Bidirectional(keras.layers.LSTM(150, return_sequences=True)))
+model.add(keras.layers.Bidirectional(keras.layers.LSTM(150)))
+model.add(keras.layers.Dense(total_words, activation='softmax'))
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+
+
+# Trening modelu
+history = model.fit(xs, ys, epochs=500, verbose=1)
+
+
+
+# Generowanie przykładowych wypowiedzi
+seed_text = "Przykładowa cytat:"
+min_words = 8
+max_words = 20
+
+# Generowanie wypowiedzi o zmiennym rozmiarze
+generated_words = 0
+while generated_words < max_words:
+    sequence = tokenizer.texts_to_sequences([seed_text])[0]
+    sequence = pad_sequences([sequence], maxlen=max_sequence_len-1, padding='pre')
+    predicted = model.predict(sequence)
+    predicted_class = tf.random.categorical(predicted, num_samples=1)[-1, 0].numpy()
+    output_word = ""
+    for word, index in tokenizer.word_index.items():
+        if index == predicted_class:
+            output_word = word
+            break
+    seed_text += " " + output_word
+    generated_words += 1
+
+print(seed_text)
+
